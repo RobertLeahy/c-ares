@@ -36,6 +36,7 @@ struct search_query {
   ares_channel_t      *channel;
   ares_callback_dnsrec callback;
   void                *arg;
+  void                *cancel_arg;
 
   /* Duplicate of DNS record passed to ares_search_dnsrec() */
   ares_dns_record_t   *dnsrec;
@@ -93,7 +94,7 @@ static ares_status_t ares_search_next(ares_channel_t      *channel,
   }
 
   status = ares_send_nolock(channel, NULL, 0, squery->dnsrec, search_callback,
-                            squery, NULL);
+                            squery, squery->cancel_arg, NULL);
 
   if (status != ARES_EFORMERR) {
     *skip_cleanup = ARES_TRUE;
@@ -312,7 +313,8 @@ done:
 
 static ares_status_t ares_search_int(ares_channel_t          *channel,
                                      const ares_dns_record_t *dnsrec,
-                                     ares_callback_dnsrec callback, void *arg)
+                                     ares_callback_dnsrec callback, void *arg,
+                                     void *cancel_arg)
 {
   struct search_query *squery = NULL;
   const char          *name;
@@ -358,6 +360,7 @@ static ares_status_t ares_search_int(ares_channel_t          *channel,
 
   squery->callback        = callback;
   squery->arg             = arg;
+  squery->cancel_arg      = cancel_arg;
   squery->timeouts        = 0;
   squery->ever_got_nodata = ARES_FALSE;
 
@@ -463,7 +466,7 @@ void ares_search(ares_channel_t *channel, const char *name, int dnsclass,
   }
 
   ares_channel_lock(channel);
-  ares_search_int(channel, dnsrec, ares_dnsrec_convert_cb, carg);
+  ares_search_int(channel, dnsrec, ares_dnsrec_convert_cb, carg, arg);
   ares_channel_unlock(channel);
 
   ares_dns_record_destroy(dnsrec);
@@ -481,7 +484,7 @@ ares_status_t ares_search_dnsrec(ares_channel_t          *channel,
   }
 
   ares_channel_lock(channel);
-  status = ares_search_int(channel, dnsrec, callback, arg);
+  status = ares_search_int(channel, dnsrec, callback, arg, arg);
   ares_channel_unlock(channel);
 
   return status;

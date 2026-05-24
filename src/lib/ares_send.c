@@ -109,7 +109,7 @@ ares_status_t ares_send_nolock(ares_channel_t *channel, ares_server_t *server,
                                ares_send_flags_t        flags,
                                const ares_dns_record_t *dnsrec,
                                ares_callback_dnsrec callback, void *arg,
-                               unsigned short *qid)
+                               void *cancel_arg, unsigned short *qid)
 {
   ares_query_t            *query;
   ares_timeval_t           now;
@@ -177,8 +177,9 @@ ares_status_t ares_send_nolock(ares_channel_t *channel, ares_server_t *server,
   }
 
   /* Fill in query arguments. */
-  query->callback = callback;
-  query->arg      = arg;
+  query->callback   = callback;
+  query->arg        = arg;
+  query->cancel_arg = cancel_arg;
 
   /* Initialize query status. */
   query->try_count = 0;
@@ -237,7 +238,7 @@ ares_status_t ares_send_dnsrec(ares_channel_t          *channel,
 
   ares_channel_lock(channel);
 
-  status = ares_send_nolock(channel, NULL, 0, dnsrec, callback, arg, qid);
+  status = ares_send_nolock(channel, NULL, 0, dnsrec, callback, arg, arg, qid);
 
   ares_channel_unlock(channel);
 
@@ -277,7 +278,10 @@ void ares_send(ares_channel_t *channel, const unsigned char *qbuf, int qlen,
     /* LCOV_EXCL_STOP */
   }
 
-  ares_send_dnsrec(channel, dnsrec, ares_dnsrec_convert_cb, carg, NULL);
+  ares_channel_lock(channel);
+  ares_send_nolock(channel, NULL, 0, dnsrec, ares_dnsrec_convert_cb, carg, arg,
+                   NULL);
+  ares_channel_unlock(channel);
 
   ares_dns_record_destroy(dnsrec);
 }
